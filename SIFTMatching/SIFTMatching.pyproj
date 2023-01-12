@@ -23,6 +23,7 @@
   <ItemGroup>
     <Compile Include="sift_matching_util.py" />
     <Compile Include="test_infer_matrix.py" />
+    <Compile Include="test_affine_image.py" />
     <Compile Include="test_mask_keypoints.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />

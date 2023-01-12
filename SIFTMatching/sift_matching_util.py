@@ -190,3 +190,50 @@ def load_keypoints(filepath: str):
     keypts = tuple(keypts)
     
     return keypts, desc
+
+"""
+    ターゲットからクエリへ透視変換する行列をキーポイント対応から推定する
+    Arguments:
+        keypts_query: キーポイント(クエリ)
+        desc_query: キーポイント特徴量(クエリ)
+        keypts_target: キーポイント(ターゲット)
+        desc_target: キーポイント特徴量(ターゲット)
+        matcher: キーポイント対応付けマッチング手法
+        distance_thr(float): 特徴量スコア 第2候補/第1候補 比 ([0, 1])
+                             小さいほど判定が厳しい
+        min_points(int): 最小対応点数
+    Returns:
+        good: キーポイント対応
+        mat: 変換行列
+             候補が見つからなければNoneを返す
+"""
+def estimate_homography_from_keypoints(keypts_query, desc_query, keypts_target, desc_target, matcher, distance_thr:float=0.5, min_points:int=8):
+    assert distance_thr >= 0 and distance_thr <= 1, 'invalid distance_thr'
+    assert min_points >= 4, 'invalid min_points'
+
+    matches = matcher.knnMatch(desc_query, desc_target, k=2)
+
+    good, query_pts, target_pts = [], [], []
+    for match, match_2nd in matches:
+        if match.distance > distance_thr * match_2nd.distance:
+            continue
+        
+        good.append([match])
+        query_pts.append(list(keypts_query[match.queryIdx].pt))
+        target_pts.append(list(keypts_target[match.trainIdx].pt))
+
+    if len(good) < min_points:
+        return good, None
+        
+    query_pts, target_pts = np.array(query_pts), np.array(target_pts)
+
+    try:
+        mat, mask = cv2.findHomography(target_pts, query_pts, cv2.RANSAC, 5)
+    except:
+        return good, None
+
+    indexes_adopts = np.where(mask[:, 0] > 0)[0]
+    
+    adopts = [good[index] for index in indexes_adopts]
+
+    return adopts, mat
