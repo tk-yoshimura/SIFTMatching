@@ -237,4 +237,7 @@ def estimate_homography_from_keypoints(keypts_query, desc_query, keypts_target, 
     
     adopts = [good[index] for index in indexes_adopts]
 
+    if len(adopts) < min_points:
+        return adopts, None
+
     return adopts, mat
