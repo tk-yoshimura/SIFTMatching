@@ -1,8 +1,8 @@
 ### SIFTキーポイントユーティリティ
 
+import warnings, itertools
 import cv2
 import numpy as np
-import warnings
 
 """
     拡大縮小/回転行列と変形後のサイズを求める
@@ -14,7 +14,7 @@ import warnings
         mat: 変形行列
         size: 変形後サイズ
 """
-def affine_matrix(size: int, scale: float, angle: float):
+def affine_matrix(size: tuple, scale: float, angle: float):
     w, h = size
     rad = angle * np.pi / 180
 
@@ -24,8 +24,7 @@ def affine_matrix(size: int, scale: float, angle: float):
     size_rot = (w_rot, h_rot)
         
     mat = cv2.getRotationMatrix2D((w / 2, h / 2), angle, scale).copy()
-    mat[0][2] += (size_rot[0] - w) / 2
-    mat[1][2] += (size_rot[1] - h) / 2
+    mat[:, 2] += (size_rot - np.array([w, h])) / 2
 
     return mat, size_rot
 
@@ -44,7 +43,8 @@ def affine_image(img: np.ndarray, scale: float, angle: float, borderValue: tuple
     assert scale > 0, 'invalid scale.'
     
     while scale < 0.5:
-        img = cv2.resize(img, (img.shape[1]//2, img.shape[0]//2), cv2.INTER_AREA)
+        h, w = img.shape[:2]
+        img = cv2.resize(img, (w//2, h//2), cv2.INTER_AREA)
         scale *= 2
             
     h, w = img.shape[:2]
@@ -84,35 +84,31 @@ def mask_keypoints(img: np.ndarray, angle_range: int, scale_range: tuple, adopt_
     coord = cv2.KeyPoint_convert(keypts)
     scores = np.zeros(len(coord), dtype=int)
 
-    for angle in range(-angle_range, angle_range + 1, 1):
-        for scale in np.arange(scale_range[0], scale_range[1] + 1e-8, 0.05):
-            img_train, mat = affine_image(img, scale, angle, borderValue=(128, 128, 128))
+    for angle, scale in itertools.product(range(-angle_range, angle_range + 1, 1), np.arange(scale_range[0], scale_range[1] + 1e-8, 0.05)):
 
-            keypts_train, desc_train = sift.detectAndCompute(img_train, None)
+        img_train, mat = affine_image(img, scale, angle, borderValue=(128, 128, 128))
+
+        keypts_train, desc_train = sift.detectAndCompute(img_train, None)
             
-            matches = bf.knnMatch(desc, desc_train, k=2)
-            indexes_query = np.full(len(coord), -1, dtype=int)
+        matches = bf.knnMatch(desc, desc_train, k=2)
+        indexes_query = np.full(len(coord), -1, dtype=int)
             
-            for match, match_2nd in matches:
-                if match.distance > 0.75 * match_2nd.distance:
-                    continue
+        for match, match_2nd in matches:
+            if match.distance > 0.75 * match_2nd.distance:
+                continue
                 
-                indexes_query[match.queryIdx] = match.trainIdx      
+            indexes_query[match.queryIdx] = match.trainIdx      
                 
-            indexes_train = np.where(indexes_query >= 0)[0]
-            coord_query = coord[indexes_query >= 0]
-            coord_train = cv2.KeyPoint_convert(keypts_train, indexes_query[indexes_query >= 0])
+        indexes_train = np.where(indexes_query >= 0)[0]
+        coord_query = coord[indexes_query >= 0]
+        coord_train = cv2.KeyPoint_convert(keypts_train, indexes_query[indexes_query >= 0])
+        
+        coord_affine = np.matmul(coord_query, mat[:, :2].T) + mat[:, 2]
 
-            coord_affine = np.stack(
-                [coord_query[:, 0] * mat[0, 0] + coord_query[:, 1] * mat[0, 1] + mat[0, 2],
-                 coord_query[:, 0] * mat[1, 0] + coord_query[:, 1] * mat[1, 1] + mat[1, 2]],
-                axis = 1
-            )
+        error = np.sum(np.square(coord_train - coord_affine), axis=1)
 
-            error = np.sum(np.square(coord_train - coord_affine), axis=1)
-
-            indexes_adopt = indexes_train[error < (adopt_threshold * adopt_threshold)]
-            scores[indexes_adopt] += 1
+        indexes_adopt = indexes_train[error < (adopt_threshold * adopt_threshold)]
+        scores[indexes_adopt] += 1
 
     scores_adopt = np.argsort(scores)[::-1]
     if len(scores_adopt) > max_points:
@@ -120,13 +116,10 @@ def mask_keypoints(img: np.ndarray, angle_range: int, scale_range: tuple, adopt_
 
     scores_adopt = scores_adopt[scores[scores_adopt] > 0]
 
-    keypts_adopt, desc_adopt = [], []
-
-    for index in scores_adopt:
-        keypts_adopt.append(keypts[index])
-        desc_adopt.append(desc[index])
-
+    keypts_adopt = [keypts[index] for index in scores_adopt]
     keypts_adopt = tuple(keypts_adopt) if len(keypts_adopt) > 0 else ()
+
+    desc_adopt = [desc[index] for index in scores_adopt]
     desc_adopt = np.stack(desc_adopt, axis=0) if len(desc_adopt) > 0 else np.zeros((0, desc.shape[1]), desc.dtype) 
 
     return keypts_adopt, desc_adopt
