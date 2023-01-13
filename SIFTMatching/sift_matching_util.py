@@ -131,10 +131,12 @@ def mask_keypoints(img: np.ndarray, angle_range: int, scale_range: tuple, adopt_
         keypts: キーポイント
         desc: キーポイント特徴量
         compressed(bool): バイナリを圧縮するか
+        precision(str): 浮動小数点精度 ('float', 'double')
 """
-def save_keypoints(filepath: str, keypts, desc, compressed: bool= True):
+def save_keypoints(filepath: str, keypts, desc, compressed: bool= True, precision: str='double'):
     assert len(keypts) > 0, 'invalid counts'
     assert len(keypts) == len(desc), 'mismatch counts'
+    assert precision in ['float', 'double'], 'invalid precision'
 
     pts, angles, responses, sizes, class_ids, octaves = [], [], [], [], [], []
 
@@ -152,6 +154,12 @@ def save_keypoints(filepath: str, keypts, desc, compressed: bool= True):
     responses = np.stack(responses)
     octaves = np.stack(octaves)
     class_ids = np.stack(class_ids)
+
+    if precision == 'float':
+        pts = pts.astype(np.float32)
+        sizes = sizes.astype(np.float32)
+        angles = angles.astype(np.float32)
+        responses = responses.astype(np.float32)
 
     if compressed:
         np.savez_compressed(filepath, pt=pts, size=sizes, angle=angles, response=responses, octave=octaves, class_id=class_ids, desc=desc)
