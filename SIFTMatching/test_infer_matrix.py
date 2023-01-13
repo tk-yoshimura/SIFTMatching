@@ -9,7 +9,7 @@ keypts_query, desc_query = load_keypoints('../results/keypts_query.npz')
 
 sift, bf_matcher = cv2.SIFT_create(), cv2.BFMatcher()
 
-for targetname in ['target_raw', 'target_noised', 'target_blocked', 'target_invalid', 'target_sobad', 'target_small', 'target_multi']:
+for targetname in ['target_raw', 'target_noised', 'target_blocked', 'target_invalid', 'target_sobad', 'target_small', 'target_multi', 'target_hokori']:
     print('Processing... %s' % targetname)
 
     img_target = cv2.imread('../target/%s.png' % targetname, cv2.IMREAD_GRAYSCALE)

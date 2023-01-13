@@ -37,7 +37,6 @@ def affine_matrix(size: tuple, scale: float, angle: float):
         borderValue((int, int, int)): 範囲外補間値
     Returns:
         img_rot: 変形画像
-        mat: 変形行列
 """
 def affine_image(img: np.ndarray, scale: float, angle: float, borderValue: tuple=(0, 0, 0)) -> np.ndarray:
     assert scale > 0, 'invalid scale.'
@@ -56,7 +55,7 @@ def affine_image(img: np.ndarray, scale: float, angle: float, borderValue: tuple
     else:
         img_rot = cv2.warpAffine(img, mat, size, flags=cv2.INTER_LINEAR, borderValue=borderValue)
 
-    return img_rot, mat
+    return img_rot
 
 """
     拡大縮小/回転に対しロバストなキーポイントを抽出します
@@ -84,9 +83,12 @@ def mask_keypoints(img: np.ndarray, angle_range: int, scale_range: tuple, adopt_
     coord = cv2.KeyPoint_convert(keypts)
     scores = np.zeros(len(coord), dtype=int)
 
+    h, w = img.shape[:2]
+
     for angle, scale in itertools.product(range(-angle_range, angle_range + 1, 1), np.arange(scale_range[0], scale_range[1] + 1e-8, 0.05)):
 
-        img_train, mat = affine_image(img, scale, angle, borderValue=(128, 128, 128))
+        img_train = affine_image(img, scale, angle, borderValue=(128, 128, 128))
+        mat, _ = affine_matrix((w, h), scale, angle)
 
         keypts_train, desc_train = sift.detectAndCompute(img_train, None)
             
