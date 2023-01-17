@@ -4,17 +4,19 @@ import warnings, itertools
 import cv2
 import numpy as np
 
-"""
-    拡大縮小/回転行列と変形後のサイズを求める
-    Arguments:
-        size((int, int)): 画像サイズ
-        scale(float): 拡大率
-        angle(float): 回転角[degree]
-    Returns:
-        mat: 変形行列
-        size: 変形後サイズ
-"""
 def affine_matrix(size: tuple, scale: float, angle: float):
+    """
+        拡大縮小/回転行列と変形後のサイズを求める
+
+        Arguments:
+            size((int, int)): 画像サイズ
+            scale(float): 拡大率
+            angle(float): 回転角[degree]
+        Returns:
+            mat: 変形行列
+            size: 変形後サイズ
+    """
+
     w, h = size
     rad = angle * np.pi / 180
 
@@ -28,17 +30,19 @@ def affine_matrix(size: tuple, scale: float, angle: float):
 
     return mat, size_rot
 
-"""
-    画像をはみ出ないよう拡大縮小/回転します
-    Arguments:
-        img(numpy.ndarray): 画像
-        scale(float): 拡大率
-        angle(float): 回転角[degree]
-        borderValue((int, int, int)): 範囲外補間値
-    Returns:
-        img_rot: 変形画像
-"""
 def affine_image(img: np.ndarray, scale: float, angle: float, borderValue: tuple=(0, 0, 0)) -> np.ndarray:
+    """
+        画像をはみ出ないよう拡大縮小/回転します
+
+        Arguments:
+            img(numpy.ndarray): 画像
+            scale(float): 拡大率
+            angle(float): 回転角[degree]
+            borderValue((int, int, int)): 範囲外補間値
+        Returns:
+            img_rot: 変形画像
+    """
+
     assert scale > 0, 'invalid scale.'
     
     while scale < 0.5:
@@ -57,19 +61,21 @@ def affine_image(img: np.ndarray, scale: float, angle: float, borderValue: tuple
 
     return img_rot
 
-"""
-    拡大縮小/回転に対しロバストなキーポイントを抽出します
-    Arguments:
-        img(numpy.ndarray): 画像
-        scale_range((float, float)): テンプレート拡大率範囲(<1)
-        angle_range(int): テンプレート傾き範囲
-        adopt_threshold(float): 座標ズレしきい値
-        max_points(int): 最大キーポイント数
-    Returns:
-        keypts: キーポイント
-        desc: キーポイント特徴量
-"""
 def mask_keypoints(img: np.ndarray, angle_range: int, scale_range: tuple, adopt_threshold:float = 4.0, max_points:int = 512):
+    """
+        拡大縮小/回転に対しロバストなキーポイントを抽出します
+    
+        Arguments:
+            img(numpy.ndarray): 画像
+            scale_range((float, float)): テンプレート拡大率範囲(<1)
+            angle_range(int): テンプレート傾き範囲
+            adopt_threshold(float): 座標ズレしきい値
+            max_points(int): 最大キーポイント数
+        Returns:
+            keypts: キーポイント
+            desc: キーポイント特徴量
+    """
+
     assert not img is None and img.ndim == 2, 'invalid img.'
     assert type(angle_range) is int and angle_range >= 0, 'angle_range'
     assert len(scale_range) == 2 and scale_range[0] <= scale_range[1], 'invalid scale_range.'
@@ -126,16 +132,18 @@ def mask_keypoints(img: np.ndarray, angle_range: int, scale_range: tuple, adopt_
 
     return keypts_adopt, desc_adopt
 
-"""
-    キーポイントをファイルに保存します
-    Arguments:
-        filepath(str): ファイルパス
-        keypts: キーポイント
-        desc: キーポイント特徴量
-        compressed(bool): バイナリを圧縮するか
-        precision(str): 浮動小数点精度 ('float', 'double')
-"""
 def save_keypoints(filepath: str, keypts, desc, compressed: bool= True, precision: str='double'):
+    """
+        キーポイントをファイルに保存します
+
+        Arguments:
+            filepath(str): ファイルパス
+            keypts: キーポイント
+            desc: キーポイント特徴量
+            compressed(bool): バイナリを圧縮するか
+            precision(str): 浮動小数点精度 ('float', 'double')
+    """
+
     assert len(keypts) > 0, 'invalid counts'
     assert len(keypts) == len(desc), 'mismatch counts'
     assert precision in ['float', 'double'], 'invalid precision'
@@ -168,15 +176,17 @@ def save_keypoints(filepath: str, keypts, desc, compressed: bool= True, precisio
     else:
         np.savez(filepath, pt=pts, size=sizes, angle=angles, response=responses, octave=octaves, class_id=class_ids, desc=desc)
 
-"""
-    キーポイントをファイルから読み込みます
-    Arguments:
-        filepath(str): ファイルパス
-    Returns:
-        keypts: キーポイント
-        desc: キーポイント特徴量
-"""
 def load_keypoints(filepath: str):
+    """
+        キーポイントをファイルから読み込みます
+    
+        Arguments:
+            filepath(str): ファイルパス
+        Returns:
+            keypts: キーポイント
+            desc: キーポイント特徴量
+    """
+
     data = np.load(filepath)
 
     desc = data['desc']
@@ -194,23 +204,25 @@ def load_keypoints(filepath: str):
     
     return keypts, desc
 
-"""
-    ターゲットからクエリへ透視変換する行列をキーポイント対応から推定する
-    Arguments:
-        keypts_query: キーポイント(クエリ)
-        desc_query: キーポイント特徴量(クエリ)
-        keypts_target: キーポイント(ターゲット)
-        desc_target: キーポイント特徴量(ターゲット)
-        matcher: キーポイント対応付けマッチング手法
-        distance_thr(float): 特徴量スコア 第2候補/第1候補 比 ([0, 1])
-                             小さいほど判定が厳しい
-        min_points(int): 最小対応点数
-    Returns:
-        good: キーポイント対応
-        mat: 変換行列
-             候補が見つからなければNoneを返す
-"""
 def estimate_homography_from_keypoints(keypts_query, desc_query, keypts_target, desc_target, matcher, distance_thr:float=0.5, min_points:int=8):
+    """
+        ターゲットからクエリへ透視変換する行列をキーポイント対応から推定する
+    
+        Arguments:
+            keypts_query: キーポイント(クエリ)
+            desc_query: キーポイント特徴量(クエリ)
+            keypts_target: キーポイント(ターゲット)
+            desc_target: キーポイント特徴量(ターゲット)
+            matcher: キーポイント対応付けマッチング手法
+            distance_thr(float): 特徴量スコア 第2候補/第1候補 比 ([0, 1])
+                                 小さいほど判定が厳しい
+            min_points(int): 最小対応点数
+        Returns:
+            good: キーポイント対応
+            mat: 変換行列
+                 候補が見つからなければNoneを返す
+    """
+
     assert distance_thr >= 0 and distance_thr <= 1, 'invalid distance_thr'
     assert min_points >= 4, 'invalid min_points'
 
